@@ -50,8 +50,9 @@ def read_raw_csv_all_years(spark: SparkSession, source_dir: str, filename: str) 
     df = spark.read.options(**CSV_OPTIONS).csv(path_pattern)
 
     # extrai o ano a partir do nome do arquivo de origem
-    # (input_file_name devolve algo como .../extraidos/2014/2014_Viagem.csv)
-    df = df.withColumn("_source_path", F.input_file_name())
+    # (em Unity Catalog, input_file_name() não é suportado — usa-se a
+    # coluna especial _metadata.file_path)
+    df = df.withColumn("_source_path", F.col("_metadata.file_path"))
     df = df.withColumn(
         "_source_year",
         F.regexp_extract(F.col("_source_path"), r"/(\d{4})_[^/]+$", 1),
