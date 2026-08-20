@@ -1,0 +1,21 @@
+# dados locais (não versionar, volume grande)
+data/bronze/*
+data/silver/*
+data/gold/*
+!data/bronze/.gitkeep
+!data/silver/.gitkeep
+!data/gold/.gitkeep
+
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# ambiente
+.env
+
+# airflow
+airflow.db
+airflow.cfg
+logs/
