@@ -42,28 +42,27 @@ CSV_OPTIONS = {
 def read_raw_csv_all_years(spark: SparkSession, source_dir: str, filename: str) -> DataFrame:
     """
     Lê um tipo de arquivo (ex: Viagem.csv) de todas as subpastas de ano de
-    uma vez, usando wildcard. Ex: source_dir/*/Viagem.csv casa com
-    source_dir/2014/Viagem.csv, source_dir/2015/Viagem.csv, etc.
+    uma vez, usando wildcard. Os arquivos reais seguem o padrão
+    <ano>_<Filename>.csv dentro de cada subpasta de ano, ex:
+    source_dir/2014/2014_Viagem.csv, source_dir/2015/2015_Viagem.csv, etc.
     """
-    path_pattern = f"{source_dir}/*/{filename}"
+    path_pattern = f"{source_dir}/*/*_{filename}"
     df = spark.read.options(**CSV_OPTIONS).csv(path_pattern)
 
-    # extrai o ano a partir do caminho completo do arquivo de origem
-    # (input_file_name devolve algo como .../extraidos/2014/Viagem.csv)
+    # extrai o ano a partir do nome do arquivo de origem
+    # (input_file_name devolve algo como .../extraidos/2014/2014_Viagem.csv)
     df = df.withColumn("_source_path", F.input_file_name())
     df = df.withColumn(
         "_source_year",
-        F.regexp_extract(F.col("_source_path"), r"/(\d{4})/[^/]+$", 1),
+        F.regexp_extract(F.col("_source_path"), r"/(\d{4})_[^/]+$", 1),
     )
 
     return df
 
 
-def add_ingestion_metadata(df: DataFrame, source_file: str) -> DataFrame:
-    """Adiciona colunas de metadado de ingestão, sem alterar o dado original."""
-    return df.withColumn("_source_file", F.lit(source_file)).withColumn(
-        "_ingested_at", F.current_timestamp()
-    )
+def add_ingestion_metadata(df: DataFrame) -> DataFrame:
+    """Adiciona coluna de metadado de ingestão (_source_path já vem de read_raw_csv_all_years)."""
+    return df.withColumn("_ingested_at", F.current_timestamp())
 
 
 def ingest_one(spark: SparkSession, source_dir: str, bronze_dir: str, filename: str, table_name: str) -> None:
@@ -71,7 +70,7 @@ def ingest_one(spark: SparkSession, source_dir: str, bronze_dir: str, filename: 
     target_path = f"{bronze_dir}/{table_name}"
 
     df = read_raw_csv_all_years(spark, source_dir, filename)
-    df = add_ingestion_metadata(df, filename)
+    df = add_ingestion_metadata(df)
 
     df.write.format("delta").mode("overwrite").save(target_path)
 
