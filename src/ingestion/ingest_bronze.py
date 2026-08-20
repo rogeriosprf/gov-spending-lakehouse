@@ -1,8 +1,10 @@
 """
 Ingestão Bronze — lê os CSVs brutos do Portal da Transparência (Viagem,
 Pagamento, Passagem, Trecho), organizados em uma subpasta por ano
-(ex: extraidos/2014/Viagem.csv, extraidos/2015/Viagem.csv, ...), e grava
-em Delta Lake sem transformação, apenas com metadado de ingestão.
+(ex: extraidos/2014/2014_Viagem.csv, extraidos/2015/2015_Viagem.csv, ...),
+e grava em Delta Lake sem transformação de negócio, apenas com
+sanitização de nomes de coluna (exigência do Delta Lake) e metadado de
+ingestão.
 
 Os arquivos do Portal da Transparência seguem o padrão:
 - separador: ";"
@@ -47,25 +49,31 @@ def read_raw_csv_all_years(spark: SparkSession, source_dir: str, filename: str) 
     uma vez, usando wildcard. Os arquivos reais seguem o padrão
     <ano>_<Filename>.csv dentro de cada subpasta de ano, ex:
     source_dir/2014/2014_Viagem.csv, source_dir/2015/2015_Viagem.csv, etc.
+
+    Retorna apenas as colunas originais do CSV (sem metadado ainda) —
+    a sanitização de nome de coluna deve rodar ANTES de qualquer coluna
+    de metadado ser adicionada, senão o prefixo "_" delas é removido
+    junto (ver sanitize_column_name).
     """
     path_pattern = f"{source_dir}/*/*_{filename}"
-    df = spark.read.options(**CSV_OPTIONS).csv(path_pattern)
-
-    # extrai o ano a partir do nome do arquivo de origem
-    # (em Unity Catalog, input_file_name() não é suportado — usa-se a
-    # coluna especial _metadata.file_path)
-    df = df.withColumn("_source_path", F.col("_metadata.file_path"))
-    df = df.withColumn(
-        "_source_year",
-        F.regexp_extract(F.col("_source_path"), r"/(\d{4})_[^/]+$", 1),
-    )
-
-    return df
+    return spark.read.options(**CSV_OPTIONS).csv(path_pattern)
 
 
 def add_ingestion_metadata(df: DataFrame) -> DataFrame:
-    """Adiciona coluna de metadado de ingestão (_source_path já vem de read_raw_csv_all_years)."""
-    return df.withColumn("_ingested_at", F.current_timestamp())
+    """
+    Adiciona colunas de metadado de ingestão. Deve ser chamada DEPOIS de
+    sanitize_columns, pra essas colunas não serem afetadas pela sanitização.
+
+    Em Unity Catalog, input_file_name() não é suportado — usa-se a coluna
+    especial _metadata.file_path.
+    """
+    df = df.withColumn("source_path", F.col("_metadata.file_path"))
+    df = df.withColumn(
+        "source_year",
+        F.regexp_extract(F.col("source_path"), r"/(\d{4})_[^/]+$", 1),
+    )
+    df = df.withColumn("ingested_at", F.current_timestamp())
+    return df
 
 
 def ingest_one(spark: SparkSession, source_dir: str, bronze_dir: str, filename: str, table_name: str) -> None:
@@ -73,13 +81,13 @@ def ingest_one(spark: SparkSession, source_dir: str, bronze_dir: str, filename: 
     target_path = f"{bronze_dir}/{table_name}"
 
     df = read_raw_csv_all_years(spark, source_dir, filename)
-    df = sanitize_columns(df)
-    df = add_ingestion_metadata(df)
+    df = sanitize_columns(df)          # sanitiza as colunas ORIGINAIS primeiro
+    df = add_ingestion_metadata(df)    # só depois adiciona metadado (sem "_" na frente)
 
     df.write.format("delta").mode("overwrite").save(target_path)
 
     count = df.count()
-    years = sorted(r["_source_year"] for r in df.select("_source_year").distinct().collect())
+    years = sorted(r["source_year"] for r in df.select("source_year").distinct().collect())
     print(f"[bronze] {table_name}: {count:,} registros gravados em {target_path} | anos: {years}")
 
 
