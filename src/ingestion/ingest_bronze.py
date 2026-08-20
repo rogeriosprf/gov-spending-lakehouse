@@ -84,7 +84,7 @@ def ingest_one(spark: SparkSession, source_dir: str, bronze_dir: str, filename: 
     df = sanitize_columns(df)          # sanitiza as colunas ORIGINAIS primeiro
     df = add_ingestion_metadata(df)    # só depois adiciona metadado (sem "_" na frente)
 
-    df.write.format("delta").mode("overwrite").save(target_path)
+    df.write.format("delta").mode("overwrite").option("overwriteSchema", "true").save(target_path)
 
     count = df.count()
     years = sorted(r["source_year"] for r in df.select("source_year").distinct().collect())
