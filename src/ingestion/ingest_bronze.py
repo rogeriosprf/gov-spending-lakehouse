@@ -23,6 +23,8 @@ Uso (dentro de um notebook Databricks, com `spark` já disponível):
 from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql import functions as F
 
+from src.utils.schema import sanitize_columns
+
 # Nome do arquivo fonte -> nome da tabela Bronze correspondente
 SOURCE_FILES = {
     "Viagem.csv": "viagem",
@@ -71,6 +73,7 @@ def ingest_one(spark: SparkSession, source_dir: str, bronze_dir: str, filename: 
     target_path = f"{bronze_dir}/{table_name}"
 
     df = read_raw_csv_all_years(spark, source_dir, filename)
+    df = sanitize_columns(df)
     df = add_ingestion_metadata(df)
 
     df.write.format("delta").mode("overwrite").save(target_path)
