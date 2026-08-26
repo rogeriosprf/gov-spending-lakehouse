@@ -50,10 +50,37 @@ gov-spending-lakehouse/
 └── tests/
 ```
 
+## Dashboard
+
+Um dashboard Streamlit se conecta **ao vivo** ao Databricks SQL Warehouse
+(via `databricks-sql-connector`) e consulta as tabelas Gold diretamente do
+Unity Catalog — sem exportação manual de arquivo.
+
+Setup:
+
+1. Copie `.streamlit/secrets.toml.example` para `.streamlit/secrets.toml`
+   e preencha com as credenciais do seu SQL Warehouse (instruções dentro
+   do próprio arquivo de exemplo). Esse arquivo nunca é versionado.
+2. Instale as dependências e rode:
+
+```bash
+pip install -r requirements-app.txt
+streamlit run app/streamlit_app.py
+```
+
+As tabelas Gold precisam estar registradas no Unity Catalog (feito
+automaticamente pelo pipeline, em `run_gold()`, como
+`govbr.gov_spending.gold_<nome_da_tabela>`).
+
 ## Status
 
-🚧 Em construção. Ver [docs/architecture.md](docs/architecture.md) para
-decisões de escopo e o que ainda não foi implementado.
+✅ Pipeline completo: Bronze → Silver → Gold (13 tabelas) → Dashboard.
+
+16 anos de dados (2011-2026), ~9.7M de viagens processadas.
+
+Ver [docs/architecture.md](docs/architecture.md) para decisões de escopo
+e o que ainda não foi implementado (Terraform, AWS nativo, orquestração
+via Airflow em produção).
 
 ## Autor
 

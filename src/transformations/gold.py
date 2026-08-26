@@ -229,13 +229,25 @@ GOLD_TABLES = {
 }
 
 
-def run_gold(spark: SparkSession, silver_dir: str, gold_dir: str) -> None:
+def register_catalog_table(spark: SparkSession, table_name: str, delta_path: str, catalog: str, schema: str) -> None:
+    """
+    Registra um Delta path como tabela do Unity Catalog (external table),
+    para poder ser consultada via SQL Warehouse (ex: por um dashboard
+    Streamlit conectado ao vivo), em vez de só como arquivo Delta solto.
+    """
+    full_name = f"{catalog}.{schema}.gold_{table_name}"
+    spark.sql(f"DROP TABLE IF EXISTS {full_name}")
+    spark.sql(f"CREATE TABLE {full_name} USING DELTA LOCATION '{delta_path}'")
+    print(f"[gold] tabela registrada: {full_name} -> {delta_path}")
+
+
+def run_gold(spark: SparkSession, silver_dir: str, gold_dir: str, catalog: str = "govbr", schema: str = "gov_spending") -> None:
     fato = build_fato_viagem(spark, silver_dir)
-    fato.write.format("delta").mode("overwrite").option("overwriteSchema", "true").save(
-        f"{gold_dir}/fato_viagem"
-    )
+    fato_path = f"{gold_dir}/fato_viagem"
+    fato.write.format("delta").mode("overwrite").option("overwriteSchema", "true").save(fato_path)
     fato_count = fato.count()
-    print(f"[gold] fato_viagem: {fato_count:,} registros em {gold_dir}/fato_viagem")
+    print(f"[gold] fato_viagem: {fato_count:,} registros em {fato_path}")
+    register_catalog_table(spark, "fato_viagem", fato_path, catalog, schema)
 
     for table_name, fn in GOLD_TABLES.items():
         if fn is None:
@@ -245,3 +257,4 @@ def run_gold(spark: SparkSession, silver_dir: str, gold_dir: str) -> None:
         df.write.format("delta").mode("overwrite").option("overwriteSchema", "true").save(target_path)
         count = df.count()
         print(f"[gold] {table_name}: {count:,} registros em {target_path}")
+        register_catalog_table(spark, table_name, target_path, catalog, schema)
