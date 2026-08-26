@@ -18,6 +18,11 @@
 - Métricas de negócio prontas para consumo: gasto total por órgão, por
   período, por tipo de despesa.
 - Formato otimizado para leitura por dashboard/BI.
+- Gravada como **tabelas gerenciadas do Unity Catalog** (`saveAsTable`),
+  não como Delta path dentro de um Volume — Volumes não suportam
+  `LOCATION` de tabela (erro `Missing cloud file system scheme`), então
+  a Gold usa um mecanismo de storage diferente da Bronze/Silver, que
+  continuam como Delta path dentro do Volume.
 
 ## Orquestração
 

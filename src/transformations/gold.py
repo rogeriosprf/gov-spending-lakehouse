@@ -229,32 +229,27 @@ GOLD_TABLES = {
 }
 
 
-def register_catalog_table(spark: SparkSession, table_name: str, delta_path: str, catalog: str, schema: str) -> None:
+def save_as_catalog_table(df: DataFrame, table_name: str, catalog: str, schema: str) -> int:
     """
-    Registra um Delta path como tabela do Unity Catalog (external table),
-    para poder ser consultada via SQL Warehouse (ex: por um dashboard
-    Streamlit conectado ao vivo), em vez de só como arquivo Delta solto.
+    Grava um DataFrame como tabela GERENCIADA do Unity Catalog (sem
+    LOCATION manual — o Databricks decide o storage automaticamente).
+    Tabelas com LOCATION dentro de um Volume não são suportadas pelo UC
+    (Volumes são para arquivos, não para storage de tabela), por isso
+    usamos saveAsTable em vez de save(path) + CREATE TABLE ... LOCATION.
     """
     full_name = f"{catalog}.{schema}.gold_{table_name}"
-    spark.sql(f"DROP TABLE IF EXISTS {full_name}")
-    spark.sql(f"CREATE TABLE {full_name} USING DELTA LOCATION '{delta_path}'")
-    print(f"[gold] tabela registrada: {full_name} -> {delta_path}")
+    df.write.format("delta").mode("overwrite").option("overwriteSchema", "true").saveAsTable(full_name)
+    count = df.count()
+    print(f"[gold] {table_name}: {count:,} registros em {full_name}")
+    return count
 
 
-def run_gold(spark: SparkSession, silver_dir: str, gold_dir: str, catalog: str = "govbr", schema: str = "gov_spending") -> None:
+def run_gold(spark: SparkSession, silver_dir: str, catalog: str = "govbr", schema: str = "gov_spending") -> None:
     fato = build_fato_viagem(spark, silver_dir)
-    fato_path = f"{gold_dir}/fato_viagem"
-    fato.write.format("delta").mode("overwrite").option("overwriteSchema", "true").save(fato_path)
-    fato_count = fato.count()
-    print(f"[gold] fato_viagem: {fato_count:,} registros em {fato_path}")
-    register_catalog_table(spark, "fato_viagem", fato_path, catalog, schema)
+    save_as_catalog_table(fato, "fato_viagem", catalog, schema)
 
     for table_name, fn in GOLD_TABLES.items():
         if fn is None:
             continue
         df = fn(fato)
-        target_path = f"{gold_dir}/{table_name}"
-        df.write.format("delta").mode("overwrite").option("overwriteSchema", "true").save(target_path)
-        count = df.count()
-        print(f"[gold] {table_name}: {count:,} registros em {target_path}")
-        register_catalog_table(spark, table_name, target_path, catalog, schema)
+        save_as_catalog_table(df, table_name, catalog, schema)
