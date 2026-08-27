@@ -86,9 +86,16 @@ Setup:
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements-app.txt
+pip install -r requirements.txt
 streamlit run app/streamlit_app.py
 ```
+
+Note: `requirements.txt` (repo root) holds the dashboard's dependencies —
+Streamlit Community Cloud always looks for this exact file name/path
+when deploying. Pipeline dependencies (PySpark, Delta Lake, Airflow) are
+listed separately in `requirements-pipeline.txt`, for reference only —
+they're already available natively inside Databricks notebooks and
+aren't needed to run the dashboard.
 
 Gold tables must already be registered in Unity Catalog (done
 automatically by the pipeline, in `run_gold()`, as
