@@ -1,13 +1,13 @@
 """
-Transformações Silver -> Gold.
+Silver -> Gold transformations.
 
-Estratégia: construir uma tabela fato central ("fato_viagem" — uma linha
-por viagem, já com valores financeiros, duração e destino/meio de
-transporte) e derivar todas as métricas de negócio por agregação em
-cima dela. Evita repetir o join entre viagem/pagamento/passagem/trecho
-para cada métrica.
+Strategy: build a central fact table ("fato_viagem" — one row per trip,
+already with financial values, duration, and destination/transport mode)
+and derive every business metric by aggregating on top of it. This
+avoids repeating the trip/payment/ticket/leg join for every single
+metric.
 
-O join acontece AQUI, não na Silver (decisão documentada em
+The join happens HERE, not in Silver (decision documented in
 docs/architecture.md).
 """
 
@@ -17,20 +17,20 @@ from pyspark.sql.window import Window
 
 
 # ---------------------------------------------------------------------------
-# Tabela fato central
+# Central fact table
 # ---------------------------------------------------------------------------
 
 def build_fato_viagem(spark: SparkSession, silver_dir: str) -> DataFrame:
     """
-    Constrói a tabela fato: uma linha por viagem, combinando dados de
-    viagem (valores, órgão, viajante) com dados agregados de trecho
-    (destino principal, meio de transporte, duração em diárias).
+    Builds the fact table: one row per trip, combining trip data (values,
+    agency, traveler) with aggregated leg data (main destination,
+    transport mode, duration in daily allowances).
     """
     viagem = spark.read.format("delta").load(f"{silver_dir}/viagem")
     trecho = spark.read.format("delta").load(f"{silver_dir}/trecho")
 
-    # agrega trecho por viagem: pega o primeiro destino (trecho de menor
-    # sequência) e o meio de transporte mais frequente, soma as diárias
+    # aggregate legs per trip: take the first destination (lowest-sequence
+    # leg) and its transport mode, sum the daily allowances
     trecho_principal = (
         trecho
         .withColumn(
@@ -76,7 +76,7 @@ def build_fato_viagem(spark: SparkSession, silver_dir: str) -> DataFrame:
 
 
 # ---------------------------------------------------------------------------
-# Métricas derivadas da tabela fato
+# Metrics derived from the fact table
 # ---------------------------------------------------------------------------
 
 def gasto_por_orgao_ano(fato: DataFrame) -> DataFrame:
@@ -102,7 +102,7 @@ def ranking_orgaos(fato: DataFrame) -> DataFrame:
 
 
 def custo_medio_por_viagem(fato: DataFrame) -> DataFrame:
-    """Custo médio geral e por órgão, lado a lado (uma tabela pequena)."""
+    """Overall average cost and per-agency average cost, side by side (a small table)."""
     geral = fato.agg(F.avg("valor_total_viagem").alias("custo_medio")).withColumn(
         "nome_do_orgao_superior", F.lit("TODOS OS ÓRGÃOS")
     )
@@ -177,11 +177,11 @@ def gasto_per_capita_orgao(fato: DataFrame) -> DataFrame:
 
 def outliers(fato: DataFrame, z_threshold: float = 3.0) -> DataFrame:
     """
-    Marca viagens cujo valor_total_viagem está muito acima da média
-    (mais de `z_threshold` desvios-padrão), calculado por órgão — assim
-    compara-se cada viagem com o padrão do próprio órgão, não com a
-    média geral (que seria distorcida por órgãos com viagens naturalmente
-    mais caras, ex: internacionais).
+    Flags trips whose valor_total_viagem is far above the mean (more
+    than `z_threshold` standard deviations), computed per agency — this
+    compares each trip against its own agency's norm, rather than the
+    global average (which would be skewed by agencies that naturally take
+    more expensive trips, e.g. international travel).
     """
     stats = fato.groupBy("nome_do_orgao_superior").agg(
         F.avg("valor_total_viagem").alias("_media_orgao"),
@@ -209,11 +209,11 @@ def outliers(fato: DataFrame, z_threshold: float = 3.0) -> DataFrame:
 
 
 # ---------------------------------------------------------------------------
-# Orquestração
+# Orchestration
 # ---------------------------------------------------------------------------
 
 GOLD_TABLES = {
-    "fato_viagem": None,  # tratado à parte, é a base
+    "fato_viagem": None,  # handled separately, it's the base table
     "gasto_por_orgao_ano": gasto_por_orgao_ano,
     "evolucao_anual": evolucao_anual,
     "ranking_orgaos": ranking_orgaos,
@@ -231,16 +231,16 @@ GOLD_TABLES = {
 
 def save_as_catalog_table(df: DataFrame, table_name: str, catalog: str, schema: str) -> int:
     """
-    Grava um DataFrame como tabela GERENCIADA do Unity Catalog (sem
-    LOCATION manual — o Databricks decide o storage automaticamente).
-    Tabelas com LOCATION dentro de um Volume não são suportadas pelo UC
-    (Volumes são para arquivos, não para storage de tabela), por isso
-    usamos saveAsTable em vez de save(path) + CREATE TABLE ... LOCATION.
+    Writes a DataFrame as a MANAGED Unity Catalog table (no manual
+    LOCATION — Databricks decides the storage automatically). Tables
+    with a LOCATION inside a Volume aren't supported by UC (Volumes are
+    for files, not table storage), so we use saveAsTable instead of
+    save(path) + CREATE TABLE ... LOCATION.
     """
     full_name = f"{catalog}.{schema}.gold_{table_name}"
     df.write.format("delta").mode("overwrite").option("overwriteSchema", "true").saveAsTable(full_name)
     count = df.count()
-    print(f"[gold] {table_name}: {count:,} registros em {full_name}")
+    print(f"[gold] {table_name}: {count:,} records at {full_name}")
     return count
 
 

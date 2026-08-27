@@ -1,13 +1,13 @@
 """
-Utilitários de schema — sanitização de nomes de coluna para compatibilidade
-com Delta Lake, que não aceita espaços, acentos ou caracteres especiais
-(' ,;{}()\\n\\t=') nos nomes de coluna.
+Schema utilities — column name sanitization for Delta Lake compatibility,
+which doesn't allow spaces, accents, or special characters
+(' ,;{}()\\n\\t=') in column names.
 
-Os headers originais do Portal da Transparência vêm em português, com
-espaço, acento e parênteses (ex: "Número da Proposta (PCDP)"). Aqui
-convertemos para snake_case sem acento, preservando o significado.
+Original Portal da Transparência headers come in Portuguese, with
+spaces, accents, and parentheses (e.g. "Número da Proposta (PCDP)").
+Here we convert them to snake_case without accents, preserving meaning.
 
-Exemplo:
+Example:
     "Número da Proposta (PCDP)" -> "numero_da_proposta_pcdp"
     "Período - Data de início"  -> "periodo_data_de_inicio"
 """
@@ -19,22 +19,22 @@ from pyspark.sql import DataFrame
 
 
 def sanitize_column_name(name: str) -> str:
-    """Converte um nome de coluna arbitrário para um formato seguro pro Delta Lake."""
-    # remove acentos (ex: "número" -> "numero")
+    """Converts an arbitrary column name into a Delta Lake-safe format."""
+    # strip accents (e.g. "número" -> "numero")
     nfkd = unicodedata.normalize("NFKD", name)
     ascii_name = nfkd.encode("ASCII", "ignore").decode("ASCII")
 
-    # troca qualquer sequência de caracteres não alfanuméricos por underscore
+    # replace any run of non-alphanumeric characters with underscore
     ascii_name = re.sub(r"[^0-9a-zA-Z]+", "_", ascii_name)
 
-    # colapsa underscores repetidos e remove nas pontas
+    # collapse repeated underscores and trim from both ends
     ascii_name = re.sub(r"_+", "_", ascii_name).strip("_")
 
     return ascii_name.lower()
 
 
 def sanitize_columns(df: DataFrame) -> DataFrame:
-    """Renomeia todas as colunas de um DataFrame para nomes seguros pro Delta Lake."""
+    """Renames every column of a DataFrame to a Delta Lake-safe name."""
     for original in df.columns:
         df = df.withColumnRenamed(original, sanitize_column_name(original))
     return df

@@ -1,10 +1,12 @@
 """
-Dashboard — Gastos com Viagens do Governo Federal Brasileiro (2011-2026)
+Dashboard - Brazilian Federal Government Business Travel Spending (2011-2026)
 
-Consome as tabelas Gold exportadas pelo pipeline (data/gold_export/*.csv),
-geradas a partir do pipeline Bronze -> Silver -> Gold em PySpark/Delta
-Lake/Databricks. Ver README.md e docs/architecture.md para detalhes do
-pipeline completo.
+Connects live to a Databricks SQL Warehouse and queries the Gold layer
+tables directly from Unity Catalog. See README.md and
+docs/architecture.md for full pipeline details.
+
+Note: underlying column names come from the original Portuguese source
+schema (Portal da Transparência) and are relabeled here only for display.
 """
 
 import pandas as pd
@@ -14,7 +16,7 @@ import streamlit as st
 from db_connection import query_table
 
 st.set_page_config(
-    page_title="Gastos com Viagens - Governo Federal",
+    page_title="Government Travel Spending",
     page_icon="✈️",
     layout="wide",
 )
@@ -24,65 +26,65 @@ def load_table(name: str) -> pd.DataFrame:
     return query_table(name)
 
 
-st.title("✈️ Gastos com Viagens do Governo Federal Brasileiro")
+st.title("✈️ Brazilian Federal Government Business Travel Spending")
 st.caption(
-    "Dados do Portal da Transparência (2011-2026) — pipeline PySpark + Delta Lake + "
-    "Databricks + Airflow. [Ver repositório](https://github.com/rogeriosprf/gov-spending-lakehouse)"
+    "Data from Portal da Transparência (2011-2026) — PySpark + Delta Lake + "
+    "Databricks + Airflow pipeline. [View repository](https://github.com/rogeriosprf/gov-spending-lakehouse)"
 )
 
-tab_overview, tab_orgaos, tab_perfil, tab_rankings, tab_outliers = st.tabs(
-    ["Visão Geral", "Por Órgão", "Perfil da Viagem", "Rankings", "Outliers"]
+tab_overview, tab_agencies, tab_profile, tab_rankings, tab_outliers = st.tabs(
+    ["Overview", "By Agency", "Trip Profile", "Rankings", "Outliers"]
 )
 
 # ---------------------------------------------------------------------------
-# Visão Geral
+# Overview
 # ---------------------------------------------------------------------------
 with tab_overview:
-    evolucao = load_table("evolucao_anual")
+    yearly = load_table("evolucao_anual")
 
-    total_gasto = evolucao["gasto_total"].sum()
-    total_viagens = evolucao["qtd_viagens"].sum()
-    custo_medio_geral = total_gasto / total_viagens if total_viagens else 0
+    total_spend = yearly["gasto_total"].sum()
+    total_trips = yearly["qtd_viagens"].sum()
+    avg_cost = total_spend / total_trips if total_trips else 0
 
     col1, col2, col3 = st.columns(3)
-    col1.metric("Gasto total (2011-2026)", f"R$ {total_gasto:,.0f}")
-    col2.metric("Total de viagens", f"{total_viagens:,.0f}")
-    col3.metric("Custo médio por viagem", f"R$ {custo_medio_geral:,.2f}")
+    col1.metric("Total spend (2011-2026)", f"R$ {total_spend:,.0f}")
+    col2.metric("Total trips", f"{total_trips:,.0f}")
+    col3.metric("Average cost per trip", f"R$ {avg_cost:,.2f}")
 
     fig = px.line(
-        evolucao,
+        yearly,
         x="ano",
         y="gasto_total",
         markers=True,
-        title="Evolução do gasto total por ano",
-        labels={"ano": "Ano", "gasto_total": "Gasto total (R$)"},
+        title="Total spend by year",
+        labels={"ano": "Year", "gasto_total": "Total spend (R$)"},
     )
     st.plotly_chart(fig, use_container_width=True)
 
-    fig_qtd = px.bar(
-        evolucao,
+    fig_qty = px.bar(
+        yearly,
         x="ano",
         y="qtd_viagens",
-        title="Quantidade de viagens por ano",
-        labels={"ano": "Ano", "qtd_viagens": "Qtd. viagens"},
+        title="Number of trips by year",
+        labels={"ano": "Year", "qtd_viagens": "Trips"},
     )
-    st.plotly_chart(fig_qtd, use_container_width=True)
+    st.plotly_chart(fig_qty, use_container_width=True)
 
 # ---------------------------------------------------------------------------
-# Por Órgão
+# By Agency
 # ---------------------------------------------------------------------------
-with tab_orgaos:
+with tab_agencies:
     ranking = load_table("ranking_orgaos").sort_values("gasto_total", ascending=False).head(20)
     per_capita = load_table("gasto_per_capita_orgao").sort_values("gasto_per_capita", ascending=False).head(20)
-    duracao = load_table("duracao_media_por_orgao").sort_values("duracao_media_dias", ascending=False).head(20)
+    duration = load_table("duracao_media_por_orgao").sort_values("duracao_media_dias", ascending=False).head(20)
 
     fig_ranking = px.bar(
         ranking,
         x="gasto_total",
         y="nome_do_orgao_superior",
         orientation="h",
-        title="Top 20 órgãos por gasto total",
-        labels={"gasto_total": "Gasto total (R$)", "nome_do_orgao_superior": ""},
+        title="Top 20 agencies by total spend",
+        labels={"gasto_total": "Total spend (R$)", "nome_do_orgao_superior": ""},
     )
     fig_ranking.update_layout(yaxis={"categoryorder": "total ascending"})
     st.plotly_chart(fig_ranking, use_container_width=True)
@@ -94,67 +96,67 @@ with tab_orgaos:
             x="gasto_per_capita",
             y="nome_do_orgao_superior",
             orientation="h",
-            title="Top 20 por gasto per capita",
-            labels={"gasto_per_capita": "Gasto per capita (R$)", "nome_do_orgao_superior": ""},
+            title="Top 20 by spend per capita",
+            labels={"gasto_per_capita": "Spend per capita (R$)", "nome_do_orgao_superior": ""},
         )
         fig_pc.update_layout(yaxis={"categoryorder": "total ascending"})
         st.plotly_chart(fig_pc, use_container_width=True)
     with col2:
         fig_dur = px.bar(
-            duracao,
+            duration,
             x="duracao_media_dias",
             y="nome_do_orgao_superior",
             orientation="h",
-            title="Top 20 por duração média de viagem",
-            labels={"duracao_media_dias": "Duração média (dias)", "nome_do_orgao_superior": ""},
+            title="Top 20 by average trip duration",
+            labels={"duracao_media_dias": "Average duration (days)", "nome_do_orgao_superior": ""},
         )
         fig_dur.update_layout(yaxis={"categoryorder": "total ascending"})
         st.plotly_chart(fig_dur, use_container_width=True)
 
 # ---------------------------------------------------------------------------
-# Perfil da Viagem
+# Trip Profile
 # ---------------------------------------------------------------------------
-with tab_perfil:
-    urgente = load_table("urgente_vs_normal")
-    sazonalidade = load_table("sazonalidade_mensal")
-    transporte = load_table("meio_transporte")
+with tab_profile:
+    urgent = load_table("urgente_vs_normal")
+    seasonality = load_table("sazonalidade_mensal")
+    transport = load_table("meio_transporte")
 
     col1, col2 = st.columns(2)
     with col1:
-        urgente_label = urgente.copy()
-        urgente_label["viagem_urgente"] = urgente_label["viagem_urgente"].map(
-            {True: "Urgente", False: "Normal"}
+        urgent_label = urgent.copy()
+        urgent_label["viagem_urgente"] = urgent_label["viagem_urgente"].map(
+            {True: "Urgent", False: "Regular"}
         )
         fig_urg = px.bar(
-            urgente_label,
+            urgent_label,
             x="viagem_urgente",
             y="gasto_medio",
-            title="Gasto médio: viagem urgente vs normal",
-            labels={"viagem_urgente": "", "gasto_medio": "Gasto médio (R$)"},
+            title="Average spend: urgent vs. regular trips",
+            labels={"viagem_urgente": "", "gasto_medio": "Average spend (R$)"},
         )
         st.plotly_chart(fig_urg, use_container_width=True)
 
     with col2:
         fig_transp = px.pie(
-            transporte,
+            transport,
             names="meio_de_transporte_principal",
             values="qtd_viagens",
-            title="Distribuição por meio de transporte",
+            title="Distribution by transport mode",
         )
         st.plotly_chart(fig_transp, use_container_width=True)
 
-    meses = [
-        "Jan", "Fev", "Mar", "Abr", "Mai", "Jun",
-        "Jul", "Ago", "Set", "Out", "Nov", "Dez",
+    months = [
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
     ]
-    sazonalidade = sazonalidade.sort_values("mes")
-    sazonalidade["mes_nome"] = sazonalidade["mes"].apply(lambda m: meses[int(m) - 1])
+    seasonality = seasonality.sort_values("mes")
+    seasonality["mes_nome"] = seasonality["mes"].apply(lambda m: months[int(m) - 1])
     fig_saz = px.bar(
-        sazonalidade,
+        seasonality,
         x="mes_nome",
         y="qtd_viagens",
-        title="Sazonalidade — quantidade de viagens por mês",
-        labels={"mes_nome": "Mês", "qtd_viagens": "Qtd. viagens"},
+        title="Seasonality — number of trips by month",
+        labels={"mes_nome": "Month", "qtd_viagens": "Trips"},
     )
     st.plotly_chart(fig_saz, use_container_width=True)
 
@@ -164,30 +166,43 @@ with tab_perfil:
 with tab_rankings:
     col1, col2 = st.columns(2)
     with col1:
-        st.subheader("Top viajantes por gasto acumulado")
-        st.dataframe(
-            load_table("top_viajantes")[["nome", "gasto_total", "qtd_viagens"]],
-            use_container_width=True,
-            hide_index=True,
+        st.subheader("Top travelers by accumulated spend")
+        top_travelers = load_table("top_viajantes")[["nome", "gasto_total", "qtd_viagens"]].rename(
+            columns={"nome": "Name", "gasto_total": "Total spend", "qtd_viagens": "Trips"}
         )
+        st.dataframe(top_travelers, use_container_width=True, hide_index=True)
     with col2:
-        st.subheader("Top destinos por volume de viagens")
-        st.dataframe(
-            load_table("top_destinos"),
-            use_container_width=True,
-            hide_index=True,
+        st.subheader("Top destinations by trip volume")
+        top_destinations = load_table("top_destinos").rename(
+            columns={
+                "destino_principal_cidade": "City",
+                "destino_principal_uf": "State",
+                "qtd_viagens": "Trips",
+                "gasto_total": "Total spend",
+            }
         )
+        st.dataframe(top_destinations, use_container_width=True, hide_index=True)
 
 # ---------------------------------------------------------------------------
 # Outliers
 # ---------------------------------------------------------------------------
 with tab_outliers:
-    st.subheader("Viagens com valor muito acima do padrão do próprio órgão")
+    st.subheader("Trips priced well above the agency's own norm")
     st.caption(
-        "Calculado por z-score dentro de cada órgão (> 3 desvios-padrão da média do órgão), "
-        "não pela média geral — evita marcar como outlier órgãos que naturalmente viajam mais caro "
-        "(ex: viagens internacionais). Ver docs/architecture.md para a limitação conhecida desse método "
-        "(distribuição de gasto é assimétrica; percentil seria mais robusto que z-score)."
+        "Computed via z-score within each agency (> 3 standard deviations from that agency's "
+        "mean), not the global average — this avoids flagging agencies that naturally travel "
+        "more expensively (e.g. international trips) as outliers. See docs/architecture.md for "
+        "a known limitation of this method (spend distribution is long-tailed; a percentile-based "
+        "approach would be more robust than z-score)."
     )
-    outliers_df = load_table("outliers").sort_values("z_score", ascending=False)
+    outliers_df = load_table("outliers").sort_values("z_score", ascending=False).rename(
+        columns={
+            "identificador_do_processo_de_viagem": "Trip ID",
+            "nome_do_orgao_superior": "Agency",
+            "nome": "Traveler",
+            "ano": "Year",
+            "valor_total_viagem": "Total value",
+            "z_score": "Z-score",
+        }
+    )
     st.dataframe(outliers_df.head(200), use_container_width=True, hide_index=True)

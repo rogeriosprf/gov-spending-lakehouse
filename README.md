@@ -1,87 +1,107 @@
 # Gov Spending Lakehouse
 
-Pipeline de dados em arquitetura Medallion (Bronze/Silver/Gold) sobre dados
-públicos de despesas de viagens do governo federal brasileiro (Portal da
-Transparência), ~9M de registros.
+A data pipeline built with the Medallion architecture (Bronze/Silver/Gold)
+over Brazilian federal government business travel spending data
+(Portal da Transparência), ~9.7M records.
 
-Projeto de portfólio construído para demonstrar experiência prática com o
-stack moderno de engenharia de dados em nuvem: **PySpark, Delta Lake,
-Databricks e Airflow**.
+Portfolio project built to demonstrate hands-on experience with a modern
+cloud data engineering stack: **PySpark, Delta Lake, Databricks, and
+Airflow**.
 
 ## Stack
 
-- **Processamento**: PySpark
-- **Armazenamento**: Delta Lake (formato ACID sobre Parquet)
-- **Ambiente**: Databricks Community Edition (gratuito)
-- **Orquestração**: Apache Airflow
-- **Fonte de dados**: Portal da Transparência (governo federal brasileiro)
+- **Processing**: PySpark
+- **Storage**: Delta Lake (ACID format on top of Parquet)
+- **Environment**: Databricks (Free Edition, Unity Catalog)
+- **Orchestration**: Apache Airflow
+- **Data source**: Portal da Transparência (Brazilian federal government)
+- **Dashboard**: Streamlit, connected live to a Databricks SQL Warehouse
 
-## Arquitetura
+## Architecture
 
 ```
-Fonte (Portal da Transparência)
+Source (Portal da Transparência)
         │
         ▼
    ┌─────────┐      ┌─────────┐      ┌─────────┐
    │ BRONZE  │ ───► │ SILVER  │ ───► │  GOLD   │
-   │  (raw)  │      │(limpo)  │      │(agregado)│
+   │  (raw)  │      │(cleaned)│      │(aggreg.)│
    └─────────┘      └─────────┘      └─────────┘
-        orquestrado por Airflow (dags/)
+        orchestrated by Airflow (dags/)
+                                          │
+                                          ▼
+                              Streamlit dashboard
+                          (live query via Databricks SQL)
 ```
 
-Detalhes de cada camada em [docs/architecture.md](docs/architecture.md).
+Full details of each layer in [docs/architecture.md](docs/architecture.md).
 
-## Estrutura do repositório
+## Repository structure
 
 ```
 gov-spending-lakehouse/
-├── data/                   # não versionado (ver .gitignore) — camadas locais de teste
+├── data/                   # not versioned (see .gitignore) — local test layers
 │   ├── bronze/
 │   ├── silver/
 │   └── gold/
-├── notebooks/              # notebooks Databricks (uma etapa por arquivo)
-├── dags/                   # DAGs do Airflow
+├── notebooks/              # Databricks notebooks (one per pipeline stage)
+├── dags/                   # Airflow DAGs
 ├── src/
-│   ├── ingestion/          # scripts de coleta da fonte
-│   ├── transformations/    # lógica de transformação Bronze→Silver→Gold
-│   └── utils/              # helpers compartilhados
+│   ├── ingestion/          # source collection scripts
+│   ├── transformations/    # Bronze→Silver→Gold transformation logic
+│   └── utils/              # shared helpers (BR date/decimal parsing, column sanitization)
+├── app/                    # Streamlit dashboard
+│   ├── streamlit_app.py
+│   └── db_connection.py
+├── .streamlit/
+│   └── secrets.toml.example
 ├── docs/
 │   └── architecture.md
 └── tests/
 ```
 
+## Pipeline results
+
+16 years of data (2011–2026), ~9.7M business trips processed end to end.
+
+| Layer | Highlights |
+|---|---|
+| Bronze | 4 raw tables (trip, payment, ticket, leg), ingested as-is with lineage metadata |
+| Silver | Typed dates/currency/booleans; **648K duplicate payment records found and removed** (~4% of the table) |
+| Gold | 12 business-ready metric tables (spend by agency/year, top travelers, seasonality, outliers, etc.) built from a single fact table, joined once |
+
 ## Dashboard
 
-Um dashboard Streamlit se conecta **ao vivo** ao Databricks SQL Warehouse
-(via `databricks-sql-connector`) e consulta as tabelas Gold diretamente do
-Unity Catalog — sem exportação manual de arquivo.
+A Streamlit dashboard connects **live** to the Databricks SQL Warehouse
+(via `databricks-sql-connector`) and queries the Gold tables directly
+from Unity Catalog — no manual file export.
 
 Setup:
 
-1. Copie `.streamlit/secrets.toml.example` para `.streamlit/secrets.toml`
-   e preencha com as credenciais do seu SQL Warehouse (instruções dentro
-   do próprio arquivo de exemplo). Esse arquivo nunca é versionado.
-2. Instale as dependências e rode:
+1. Copy `.streamlit/secrets.toml.example` to `.streamlit/secrets.toml`
+   and fill in your SQL Warehouse credentials (instructions inside the
+   example file itself). This file is never committed.
+2. Install dependencies and run:
 
 ```bash
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements-app.txt
 streamlit run app/streamlit_app.py
 ```
 
-As tabelas Gold precisam estar registradas no Unity Catalog (feito
-automaticamente pelo pipeline, em `run_gold()`, como
-`govbr.gov_spending.gold_<nome_da_tabela>`).
+Gold tables must already be registered in Unity Catalog (done
+automatically by the pipeline, in `run_gold()`, as
+`govbr.gov_spending.gold_<table_name>`).
 
 ## Status
 
-✅ Pipeline completo: Bronze → Silver → Gold (13 tabelas) → Dashboard.
+✅ Full pipeline: Bronze → Silver → Gold (13 tables) → live dashboard.
 
-16 anos de dados (2011-2026), ~9.7M de viagens processadas.
+See [docs/architecture.md](docs/architecture.md) for scope decisions and
+what's intentionally out of scope for now (Terraform, native AWS,
+Airflow running in production).
 
-Ver [docs/architecture.md](docs/architecture.md) para decisões de escopo
-e o que ainda não foi implementado (Terraform, AWS nativo, orquestração
-via Airflow em produção).
+## Author
 
-## Autor
-
-Paulo Rogério — [portfólio](https://rogeriosprf.github.io/portifolio/)
+Paulo Rogério — [portfolio](https://rogeriosprf.github.io/portifolio/)

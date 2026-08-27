@@ -1,4 +1,4 @@
-# dados locais (não versionar, volume grande — o pipeline roda no Databricks)
+# local data (not versioned, large volume — the pipeline runs on Databricks)
 data/bronze/*
 data/silver/*
 data/gold/*
@@ -12,10 +12,10 @@ __pycache__/
 .venv/
 venv/
 
-# ambiente
+# environment
 .env
 
-# credenciais (NUNCA versionar)
+# credentials (NEVER commit)
 .streamlit/secrets.toml
 
 # airflow

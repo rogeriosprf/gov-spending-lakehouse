@@ -1,9 +1,9 @@
 """
-Notebook Databricks - Etapa 2: Transformação Silver
+Databricks Notebook - Stage 2: Silver Transformation
 
-Lê cada tabela Bronze, aplica tipagem (datas, valores monetários,
-booleanos) e remove duplicatas exatas. Sem join entre tabelas — cada
-uma continua na granularidade original. Grava em Delta Lake.
+Reads each Bronze table, applies typing (dates, currency values,
+booleans) and removes exact duplicates. No join between tables — each
+one stays at its original granularity. Writes to Delta Lake.
 """
 
 from src.transformations.silver import run_silver

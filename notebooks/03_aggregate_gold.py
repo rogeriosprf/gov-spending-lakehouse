@@ -1,14 +1,14 @@
 """
-Notebook Databricks - Etapa 3: Agregação Gold
+Databricks Notebook - Stage 3: Gold Aggregation
 
-Constrói a tabela fato (join viagem + trecho) e todas as métricas de
-negócio derivadas: gasto por órgão/ano, ranking de órgãos, evolução
-anual, top viajantes, urgente vs normal, sazonalidade mensal, meio de
-transporte, duração média, top destinos, gasto per capita e outliers.
+Builds the fact table (trip + leg join) and every derived business
+metric: spend by agency/year, agency ranking, yearly trend, top
+travelers, urgent vs. regular, monthly seasonality, transport mode,
+average duration, top destinations, per-capita spend, and outliers.
 
-Grava cada tabela como tabela GERENCIADA do Unity Catalog (não em Volume
-path — Volumes não suportam LOCATION de tabela), prontas para consulta
-via SQL Warehouse (ex: pelo dashboard Streamlit).
+Writes each table as a MANAGED Unity Catalog table (not a Volume path —
+Volumes don't support table LOCATION), ready to query via SQL Warehouse
+(e.g. from the Streamlit dashboard).
 """
 
 from src.transformations.gold import run_gold

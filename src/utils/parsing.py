@@ -1,8 +1,8 @@
 """
-Utilitários de parsing para o padrão de dados do governo brasileiro:
-- datas no formato dd/MM/yyyy
-- valores monetários no formato "1.234,56" (ponto = milhar, vírgula = decimal)
-- booleanos como "SIM"/"NÃO"
+Parsing utilities for the Brazilian government data pattern:
+- dates in dd/MM/yyyy format
+- currency values in "1.234,56" format (dot = thousands, comma = decimal)
+- booleans as "SIM"/"NAO" (Yes/No)
 """
 
 from pyspark.sql import Column
@@ -10,20 +10,20 @@ from pyspark.sql import functions as F
 
 
 def parse_br_date(col: Column) -> Column:
-    """Converte uma coluna string 'dd/MM/yyyy' para date. Valores inválidos viram null."""
+    """Converts a 'dd/MM/yyyy' string column to date. Invalid values become null."""
     return F.to_date(col, "dd/MM/yyyy")
 
 
 def parse_br_time(col: Column) -> Column:
-    """Converte uma coluna string 'HH:mm' para timestamp de hora. Valores inválidos viram null."""
+    """Converts a 'HH:mm' string column to a time timestamp. Invalid values become null."""
     return F.to_timestamp(col, "HH:mm")
 
 
 def parse_br_decimal(col: Column) -> Column:
     """
-    Converte uma coluna string no formato brasileiro ('1.234,56') para
-    double. Remove separador de milhar (.) e troca separador decimal
-    (,) por (.). Valores vazios ou inválidos viram null.
+    Converts a Brazilian-formatted string column ('1.234,56') to double.
+    Strips the thousands separator (.) and swaps the decimal separator
+    (,) for (.). Empty or invalid values become null.
     """
     cleaned = F.regexp_replace(col, r"\.", "")
     cleaned = F.regexp_replace(cleaned, r",", ".")
@@ -31,7 +31,7 @@ def parse_br_decimal(col: Column) -> Column:
 
 
 def parse_br_boolean(col: Column) -> Column:
-    """Converte 'SIM'/'NAO' (com ou sem acento, qualquer caixa) para boolean."""
+    """Converts 'SIM'/'NAO' (accented or not, any case) to boolean."""
     normalized = F.upper(F.trim(col))
     return F.when(normalized == "SIM", True).when(
         normalized.isin("NAO", "NÃO"), False

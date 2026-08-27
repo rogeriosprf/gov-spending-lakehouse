@@ -1,14 +1,14 @@
 """
-Conexão ao vivo com o Databricks SQL Warehouse.
+Live connection to the Databricks SQL Warehouse.
 
-Credenciais nunca ficam no código: vêm de st.secrets (Streamlit Cloud /
-.streamlit/secrets.toml local) ou de variáveis de ambiente, nessa ordem
-de prioridade.
+Credentials are never hardcoded: they come from st.secrets (Streamlit
+Cloud / local .streamlit/secrets.toml) or environment variables, in that
+priority order.
 
-Necessário (ver README.md para onde encontrar cada valor):
-- DATABRICKS_SERVER_HOSTNAME  (Connection Details do SQL Warehouse)
-- DATABRICKS_HTTP_PATH        (idem)
-- DATABRICKS_TOKEN            (Personal Access Token, gerado no seu usuário)
+Required (see README.md for where to find each value):
+- DATABRICKS_SERVER_HOSTNAME  (SQL Warehouse "Connection details")
+- DATABRICKS_HTTP_PATH        (same tab)
+- DATABRICKS_TOKEN            (Personal Access Token, generated for your user)
 """
 
 import os
@@ -24,8 +24,8 @@ def _get_secret(key: str) -> str:
     value = os.environ.get(key)
     if not value:
         raise RuntimeError(
-            f"Credencial '{key}' não encontrada. Configure em "
-            f".streamlit/secrets.toml ou como variável de ambiente."
+            f"Credential '{key}' not found. Configure it in "
+            f".streamlit/secrets.toml or as an environment variable."
         )
     return value
 
@@ -39,9 +39,9 @@ def get_connection():
     )
 
 
-@st.cache_data(ttl=600)  # cache de 10min — evita reconsultar o warehouse a cada interação do usuário
+@st.cache_data(ttl=600)  # 10min cache — avoids re-querying the warehouse on every user interaction
 def query_table(table_name: str, catalog: str = "govbr", schema: str = "gov_spending") -> pd.DataFrame:
-    """Consulta uma tabela Gold registrada no Unity Catalog, retorna como pandas DataFrame."""
+    """Queries a Gold table registered in Unity Catalog, returns it as a pandas DataFrame."""
     full_name = f"{catalog}.{schema}.gold_{table_name}"
     conn = get_connection()
     with conn.cursor() as cursor:

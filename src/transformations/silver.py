@@ -1,12 +1,12 @@
 """
-Transformações Bronze -> Silver.
+Bronze -> Silver transformations.
 
-Cada função:
-1. Aplica tipagem correta (datas, valores monetários, booleanos)
-2. Remove duplicatas exatas (comparando apenas as colunas de negócio,
-   ignorando metadado de ingestão que varia entre execuções)
-3. NÃO faz join entre tabelas — cada uma continua na sua granularidade
-   original. O join fica pra camada Gold (ver docs/architecture.md).
+Each function:
+1. Applies correct typing (dates, currency values, booleans)
+2. Removes exact duplicates (comparing only business columns, ignoring
+   ingestion metadata that changes between runs)
+3. Does NOT join tables — each one stays at its original granularity.
+   The join happens in the Gold layer (see docs/architecture.md).
 """
 
 from pyspark.sql import DataFrame
@@ -14,13 +14,13 @@ from pyspark.sql import functions as F
 
 from src.utils.parsing import parse_br_date, parse_br_time, parse_br_decimal, parse_br_boolean
 
-# colunas de metadado de ingestão — nunca entram na checagem de duplicata,
-# porque mudam a cada execução (ingested_at) mesmo pra a mesma linha de dado
+# ingestion metadata columns — never part of the duplicate check, since
+# they change on every run (ingested_at) even for the same data row
 METADATA_COLUMNS = ["source_path", "source_year", "ingested_at"]
 
 
 def _drop_exact_duplicates(df: DataFrame) -> DataFrame:
-    """Remove duplicatas exatas nas colunas de negócio (ignora metadado)."""
+    """Removes exact duplicates on business columns (ignores metadata)."""
     business_columns = [c for c in df.columns if c not in METADATA_COLUMNS]
     return df.dropDuplicates(business_columns)
 
@@ -56,7 +56,7 @@ def transform_trecho(df: DataFrame) -> DataFrame:
     return _drop_exact_duplicates(df)
 
 
-# tabela -> função de transformação correspondente
+# table -> corresponding transformation function
 TRANSFORMATIONS = {
     "viagem": transform_viagem,
     "pagamento": transform_pagamento,
@@ -66,7 +66,7 @@ TRANSFORMATIONS = {
 
 
 def run_silver(spark, bronze_dir: str, silver_dir: str) -> None:
-    """Lê cada tabela Bronze, aplica sua transformação, grava em Silver."""
+    """Reads each Bronze table, applies its transformation, writes to Silver."""
     for table_name, transform_fn in TRANSFORMATIONS.items():
         bronze_path = f"{bronze_dir}/{table_name}"
         silver_path = f"{silver_dir}/{table_name}"
@@ -80,4 +80,4 @@ def run_silver(spark, bronze_dir: str, silver_dir: str) -> None:
         df.write.format("delta").mode("overwrite").option("overwriteSchema", "true").save(silver_path)
 
         dropped = before_count - after_count
-        print(f"[silver] {table_name}: {after_count:,} registros ({dropped:,} duplicatas removidas) em {silver_path}")
+        print(f"[silver] {table_name}: {after_count:,} records ({dropped:,} duplicates removed) at {silver_path}")

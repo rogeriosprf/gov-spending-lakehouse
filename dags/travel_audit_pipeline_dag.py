@@ -1,6 +1,6 @@
 """
-DAG do Airflow: orquestra o pipeline Bronze -> Silver -> Gold.
+Airflow DAG: orchestrates the Bronze -> Silver -> Gold pipeline.
 """
 
-# TODO: implementar DAG (PythonOperator ou DatabricksSubmitRunOperator
-# para cada etapa, com retry configurado)
+# TODO: implement the DAG (PythonOperator or DatabricksSubmitRunOperator
+# per stage, with retries configured)
